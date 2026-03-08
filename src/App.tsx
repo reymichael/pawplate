@@ -7,6 +7,8 @@ import DashboardPage from '@/pages/DashboardPage'
 import RecipesPage from '@/pages/RecipesPage'
 import PantryPage from '@/pages/PantryPage'
 import SettingsPage from '@/pages/SettingsPage'
+import AddPetPage from '@/pages/AddPetPage'
+import PetDetailPage from '@/pages/PetDetailPage'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -30,6 +32,8 @@ function AppRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/pets/new" element={<AddPetPage />} />
+        <Route path="/pets/:id" element={<PetDetailPage />} />
         <Route path="/recipes" element={<RecipesPage />} />
         <Route path="/pantry" element={<PantryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
