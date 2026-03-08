@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -10,23 +10,23 @@ import {
 import { fetchCustomIngredients } from '@/lib/customIngredients'
 import { calculateNutrition, dailyServingGrams } from '@/lib/recipeCalculations'
 import { calculateMER } from '@/lib/petCalculations'
-import type { Pet, IngredientData, RecipeIngredient } from '@/types'
-import { ArrowLeft, Plus, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
 import IngredientPicker from '@/components/recipes/IngredientPicker'
 import BalanceScoreCard from '@/components/recipes/BalanceScoreCard'
+import type { Pet, RecipeIngredient } from '@/types'
+import { ArrowLeft, Plus, ChevronDown, ChevronUp, Trash2, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
-// ── Types ────────────────────────────────────────────────────────────────────
 interface DraftLine {
   ingredient_id: string
   grams: number
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
-export default function AddRecipePage() {
+export default function EditRecipePage() {
+  const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
   const navigate = useNavigate()
 
+  const [loading, setLoading] = useState(true)
   const [pets, setPets] = useState<Pet[]>([])
   const [recipeName, setRecipeName] = useState('')
   const [selectedPetId, setSelectedPetId] = useState('')
@@ -37,74 +37,94 @@ export default function AddRecipePage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !id) return
 
-    // Fetch pets + custom ingredients in parallel
     Promise.all([
       supabase.from('pets').select('*').eq('user_id', user.id).order('created_at'),
+      supabase.from('recipes').select('*').eq('id', id).eq('user_id', user.id).single(),
       fetchCustomIngredients(user.id),
-    ]).then(([petsRes, customIngs]) => {
-      if (petsRes.data) {
-        setPets(petsRes.data as Pet[])
-        if (petsRes.data.length === 1) setSelectedPetId(petsRes.data[0].id)
+    ]).then(([petsRes, recipeRes, customIngs]) => {
+      if (petsRes.data) setPets(petsRes.data as Pet[])
+
+      if (recipeRes.error || !recipeRes.data) {
+        toast.error('Recipe not found.')
+        navigate('/recipes')
+        return
       }
-      // Register custom ingredients so calculateNutrition can resolve them
+
       registerCustomIngredients(customIngs)
+
+      const recipe = recipeRes.data
+      setRecipeName(recipe.name)
+      setSelectedPetId(recipe.pet_id ?? '')
+      setNotes(recipe.notes ?? '')
+      setLines(
+        (recipe.ingredients as RecipeIngredient[]).map(i => ({
+          ingredient_id: i.ingredient_id,
+          grams: i.grams,
+        }))
+      )
+      setLoading(false)
     })
-  }, [user])
+  }, [user, id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedPet = pets.find(p => p.id === selectedPetId) ?? null
   const allIngredients = getAllIngredients()
 
-  function addIngredient(ing: IngredientData, grams: number) {
+  function addIngredient(ing: { id: string }, grams: number) {
     setLines(prev => {
       const existing = prev.findIndex(l => l.ingredient_id === ing.id)
-      if (existing >= 0) {
-        return prev.map((l, i) => i === existing ? { ...l, grams } : l)
-      }
+      if (existing >= 0) return prev.map((l, i) => i === existing ? { ...l, grams } : l)
       return [...prev, { ingredient_id: ing.id, grams }]
     })
     setPickerOpen(false)
   }
 
-  function removeLine(id: string) {
-    setLines(prev => prev.filter(l => l.ingredient_id !== id))
+  function removeLine(ingredientId: string) {
+    setLines(prev => prev.filter(l => l.ingredient_id !== ingredientId))
   }
 
-  function updateGrams(id: string, grams: number) {
-    setLines(prev => prev.map(l => l.ingredient_id === id ? { ...l, grams } : l))
+  function updateGrams(ingredientId: string, grams: number) {
+    setLines(prev => prev.map(l => l.ingredient_id === ingredientId ? { ...l, grams } : l))
   }
 
   async function handleSave() {
-    if (!recipeName.trim()) {
-      toast.error('Give your recipe a name.')
-      return
-    }
-    if (lines.length === 0) {
-      toast.error('Add at least one ingredient.')
-      return
-    }
+    if (!recipeName.trim()) { toast.error('Give your recipe a name.'); return }
+    if (lines.length === 0) { toast.error('Add at least one ingredient.'); return }
     setSaving(true)
     try {
       const payload: RecipeIngredient[] = lines.map(l => ({
         ingredient_id: l.ingredient_id,
         grams: l.grams,
       }))
-      const { error } = await supabase.from('recipes').insert({
-        user_id: user!.id,
-        pet_id: selectedPetId || null,
-        name: recipeName.trim(),
-        ingredients: payload,
-        notes: notes.trim() || null,
-      })
+      const { error } = await supabase
+        .from('recipes')
+        .update({
+          pet_id: selectedPetId || null,
+          name: recipeName.trim(),
+          ingredients: payload,
+          notes: notes.trim() || null,
+        })
+        .eq('id', id!)
+        .eq('user_id', user!.id)
+
       if (error) throw error
-      toast.success('Recipe saved!')
-      navigate('/recipes')
+      toast.success('Recipe updated!')
+      navigate(`/recipes/${id}`)
     } catch {
-      toast.error('Could not save recipe. Please try again.')
+      toast.error('Could not update recipe. Please try again.')
     } finally {
       setSaving(false)
     }
+  }
+
+  // ── Loading ──────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="animate-spin text-muted-foreground" size={32} />
+      </div>
+    )
   }
 
   const nutrition = calculateNutrition(lines)
@@ -119,12 +139,12 @@ export default function AddRecipePage() {
         <div className="sticky top-0 z-40 bg-background border-b flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/recipes')}
+              onClick={() => navigate(`/recipes/${id}`)}
               className="p-2 -ml-2 rounded-full hover:bg-muted transition-colors"
             >
               <ArrowLeft size={20} />
             </button>
-            <h1 className="font-semibold text-lg">New Recipe</h1>
+            <h1 className="font-semibold text-lg">Edit Recipe</h1>
           </div>
           <button
             onClick={handleSave}
@@ -190,7 +210,7 @@ export default function AddRecipePage() {
             ) : (
               <div className="space-y-2">
                 {lines.map(line => {
-                  const ing = getIngredientById(line.ingredient_id)!
+                  const ing = getIngredientById(line.ingredient_id)
                   if (!ing) return null
                   const lineKcal = (ing.kcal * line.grams) / 100
                   return (
@@ -225,7 +245,6 @@ export default function AddRecipePage() {
                   )
                 })}
 
-                {/* Add more button inline */}
                 <button
                   onClick={() => setPickerOpen(true)}
                   className="w-full h-10 rounded-xl border border-dashed border-border flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
@@ -251,7 +270,7 @@ export default function AddRecipePage() {
             />
           </div>
 
-          {/* Nutrition + Balance Score (shown when ingredients added) */}
+          {/* Nutrition + Balance Score */}
           {lines.length > 0 && (
             <div>
               <button
@@ -259,12 +278,13 @@ export default function AddRecipePage() {
                 className="flex items-center justify-between w-full mb-3"
               >
                 <h2 className="text-sm font-semibold text-foreground">Nutrition & Balance</h2>
-                {nutritionOpen ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
+                {nutritionOpen
+                  ? <ChevronUp size={16} className="text-muted-foreground" />
+                  : <ChevronDown size={16} className="text-muted-foreground" />}
               </button>
 
               {nutritionOpen && (
                 <div className="space-y-3">
-                  {/* Quick stats */}
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { label: 'Total kcal', value: `${Math.round(nutrition.totalKcal)}` },
@@ -278,17 +298,17 @@ export default function AddRecipePage() {
                     ))}
                   </div>
 
-                  {/* Daily serving */}
                   {selectedPet && nutrition.totalKcal > 0 && (
                     <div className="bg-primary/5 rounded-xl p-3 border border-primary/20">
                       <p className="text-sm text-foreground">
                         <span className="font-semibold">Feed {selectedPet.name} ~{servingG}g/day</span>
-                        {' '}<span className="text-muted-foreground text-xs">to meet daily energy needs ({Math.round(petMer)} kcal)</span>
+                        {' '}<span className="text-muted-foreground text-xs">
+                          to meet daily energy needs ({Math.round(petMer)} kcal)
+                        </span>
                       </p>
                     </div>
                   )}
 
-                  {/* Balance Score */}
                   {selectedPet ? (
                     <BalanceScoreCard lines={lines} species={selectedPet.species} />
                   ) : (
@@ -305,7 +325,6 @@ export default function AddRecipePage() {
         </div>
       </div>
 
-      {/* Ingredient Picker overlay */}
       {pickerOpen && (
         <IngredientPicker
           allIngredients={allIngredients}

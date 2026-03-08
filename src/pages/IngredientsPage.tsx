@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, FlaskConical, Trash2 } from 'lucide-react'
+import { Plus, FlaskConical, Trash2, Pencil } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { fetchCustomIngredients, deleteCustomIngredient } from '@/lib/customIngredients'
 import { CATEGORY_LABEL } from '@/lib/ingredients'
@@ -89,6 +89,13 @@ export default function IngredientsPage() {
                   <span className="text-muted-foreground"> per 100g</span>
                 </p>
               </div>
+              <button
+                onClick={() => navigate(`/ingredients/${ing.id.replace('custom_', '')}/edit`)}
+                className="p-2 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                aria-label="Edit ingredient"
+              >
+                <Pencil size={16} />
+              </button>
               <button
                 onClick={() => handleDelete(ing)}
                 disabled={deleting === ing.id}

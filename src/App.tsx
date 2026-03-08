@@ -13,6 +13,8 @@ import AddRecipePage from '@/pages/AddRecipePage'
 import RecipeDetailPage from '@/pages/RecipeDetailPage'
 import IngredientsPage from '@/pages/IngredientsPage'
 import AddIngredientPage from '@/pages/AddIngredientPage'
+import EditIngredientPage from '@/pages/EditIngredientPage'
+import EditRecipePage from '@/pages/EditRecipePage'
 import OnboardingPage from '@/pages/OnboardingPage'
 
 function AppRoutes() {
@@ -63,9 +65,11 @@ function AppRoutes() {
         <Route path="/pets/:id" element={<PetDetailPage />} />
         <Route path="/recipes" element={<RecipesPage />} />
         <Route path="/recipes/new" element={<AddRecipePage />} />
+        <Route path="/recipes/:id/edit" element={<EditRecipePage />} />
         <Route path="/recipes/:id" element={<RecipeDetailPage />} />
         <Route path="/ingredients" element={<IngredientsPage />} />
         <Route path="/ingredients/new" element={<AddIngredientPage />} />
+        <Route path="/ingredients/:id/edit" element={<EditIngredientPage />} />
         <Route path="/pantry" element={<PantryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
