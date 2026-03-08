@@ -11,25 +11,50 @@ import AddPetPage from '@/pages/AddPetPage'
 import PetDetailPage from '@/pages/PetDetailPage'
 import AddRecipePage from '@/pages/AddRecipePage'
 import RecipeDetailPage from '@/pages/RecipeDetailPage'
+import IngredientsPage from '@/pages/IngredientsPage'
+import AddIngredientPage from '@/pages/AddIngredientPage'
+import OnboardingPage from '@/pages/OnboardingPage'
 
 function AppRoutes() {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
 
+  // ── Session + profile loading ─────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       </div>
     )
   }
 
+  // ── Not authenticated ─────────────────────────────────────────────────────
   if (!user) {
     return <AuthPage />
   }
 
+  // ── Profile still resolving after auth state change ───────────────────────
+  if (profile === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  // ── Onboarding: new user (no profile row) or not yet completed ────────────
+  if (!profile || !profile.onboarding_completed) {
+    return (
+      <Routes>
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="*" element={<Navigate to="/onboarding" replace />} />
+      </Routes>
+    )
+  }
+
+  // ── Full app ──────────────────────────────────────────────────────────────
   return (
     <Routes>
       <Route element={<AppLayout />}>
@@ -39,6 +64,8 @@ function AppRoutes() {
         <Route path="/recipes" element={<RecipesPage />} />
         <Route path="/recipes/new" element={<AddRecipePage />} />
         <Route path="/recipes/:id" element={<RecipeDetailPage />} />
+        <Route path="/ingredients" element={<IngredientsPage />} />
+        <Route path="/ingredients/new" element={<AddIngredientPage />} />
         <Route path="/pantry" element={<PantryPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

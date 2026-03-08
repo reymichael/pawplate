@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { getIngredientById } from '@/lib/ingredients'
+import { getIngredientById, registerCustomIngredients } from '@/lib/ingredientRegistry'
+import { fetchCustomIngredients } from '@/lib/customIngredients'
 import { calculateNutrition, macroPercents, dailyServingGrams, fmtNutrient } from '@/lib/recipeCalculations'
 import { scoreRecipe, scoreLabel, scoreColor } from '@/lib/aafco'
 import { calculateMER } from '@/lib/petCalculations'
@@ -45,12 +46,15 @@ export default function RecipeDetailPage() {
 
   async function fetchRecipe() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('recipes')
-      .select('*')
-      .eq('id', id)
-      .eq('user_id', user!.id)
-      .single()
+
+    // Fetch recipe + custom ingredients in parallel
+    const [{ data, error }, customIngs] = await Promise.all([
+      supabase.from('recipes').select('*').eq('id', id).eq('user_id', user!.id).single(),
+      fetchCustomIngredients(user!.id),
+    ])
+
+    // Register custom ingredients so calculateNutrition can resolve their IDs
+    registerCustomIngredients(customIngs)
 
     if (error || !data) {
       toast.error('Recipe not found.')

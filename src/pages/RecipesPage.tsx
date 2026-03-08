@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { calculateNutrition } from '@/lib/recipeCalculations'
+import { registerCustomIngredients } from '@/lib/ingredientRegistry'
+import { fetchCustomIngredients } from '@/lib/customIngredients'
 import { TOXIC_FOODS, SEVERITY_DOT, SEVERITY_LABEL } from '@/lib/toxicFoods'
 import type { Recipe, Pet } from '@/types'
 import { Plus, UtensilsCrossed, ChevronRight, Flame, AlertTriangle } from 'lucide-react'
@@ -106,9 +108,12 @@ export default function RecipesPage() {
     Promise.all([
       supabase.from('recipes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('pets').select('*').eq('user_id', user.id),
-    ]).then(([recipesRes, petsRes]) => {
+      fetchCustomIngredients(user.id),
+    ]).then(([recipesRes, petsRes, customIngs]) => {
       if (recipesRes.data) setRecipes(recipesRes.data as Recipe[])
       if (petsRes.data) setPets(petsRes.data as Pet[])
+      // Register custom ingredients so recipe card nutrition calculations work
+      registerCustomIngredients(customIngs)
       setLoading(false)
     })
   }, [user])

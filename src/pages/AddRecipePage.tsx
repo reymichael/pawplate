@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import {
-  INGREDIENTS,
   CATEGORY_LABEL,
   CATEGORY_ORDER,
+  getAllIngredients,
   getIngredientById,
-} from '@/lib/ingredients'
+  registerCustomIngredients,
+} from '@/lib/ingredientRegistry'
+import { fetchCustomIngredients } from '@/lib/customIngredients'
 import { calculateNutrition, macroPercents, dailyServingGrams } from '@/lib/recipeCalculations'
 import { scoreRecipe, scoreLabel } from '@/lib/aafco'
 import { calculateMER } from '@/lib/petCalculations'
@@ -23,10 +25,12 @@ interface DraftLine {
 
 // ── Ingredient Picker Overlay ─────────────────────────────────────────────────
 function IngredientPicker({
+  allIngredients,
   onAdd,
   onClose,
   existingIds,
 }: {
+  allIngredients: IngredientData[]
   onAdd: (ing: IngredientData, grams: number) => void
   onClose: () => void
   existingIds: Set<string>
@@ -35,17 +39,19 @@ function IngredientPicker({
   const [selected, setSelected] = useState<IngredientData | null>(null)
   const [gramStr, setGramStr] = useState('')
 
-  const filtered = query.trim()
-    ? INGREDIENTS.filter(i =>
-        i.name.toLowerCase().includes(query.toLowerCase()) ||
-        CATEGORY_LABEL[i.category]?.toLowerCase().includes(query.toLowerCase())
-      )
-    : INGREDIENTS
+  const matches = (i: IngredientData) =>
+    !query.trim() ||
+    i.name.toLowerCase().includes(query.toLowerCase()) ||
+    CATEGORY_LABEL[i.category]?.toLowerCase().includes(query.toLowerCase())
 
-  // Group by category
+  const customFiltered = allIngredients.filter(i => i.id.startsWith('custom_') && matches(i))
+  const builtInFiltered = allIngredients.filter(i => !i.id.startsWith('custom_') && matches(i))
+
+  // Group built-in by category
   const grouped: Record<string, IngredientData[]> = {}
+  if (customFiltered.length > 0) grouped['_custom'] = customFiltered
   for (const cat of CATEGORY_ORDER) {
-    const items = filtered.filter(i => i.category === cat)
+    const items = builtInFiltered.filter(i => i.category === cat)
     if (items.length > 0) grouped[cat] = items
   }
 
@@ -85,9 +91,9 @@ function IngredientPicker({
       <div className="flex-1 overflow-y-auto pb-8">
         {Object.entries(grouped).map(([cat, items]) => (
           <div key={cat}>
-            <div className="px-4 py-2 bg-muted/40">
+            <div className={`px-4 py-2 ${cat === '_custom' ? 'bg-primary/5' : 'bg-muted/40'}`}>
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {CATEGORY_LABEL[cat]}
+                {cat === '_custom' ? '⭐ My Custom Ingredients' : CATEGORY_LABEL[cat]}
               </span>
             </div>
             {items.map(ing => (
@@ -266,26 +272,28 @@ export default function AddRecipePage() {
 
   useEffect(() => {
     if (!user) return
-    supabase
-      .from('pets')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at')
-      .then(({ data }) => {
-        if (data) {
-          setPets(data as Pet[])
-          if (data.length === 1) setSelectedPetId(data[0].id)
-        }
-      })
+
+    // Fetch pets + custom ingredients in parallel
+    Promise.all([
+      supabase.from('pets').select('*').eq('user_id', user.id).order('created_at'),
+      fetchCustomIngredients(user.id),
+    ]).then(([petsRes, customIngs]) => {
+      if (petsRes.data) {
+        setPets(petsRes.data as Pet[])
+        if (petsRes.data.length === 1) setSelectedPetId(petsRes.data[0].id)
+      }
+      // Register custom ingredients so calculateNutrition can resolve them
+      registerCustomIngredients(customIngs)
+    })
   }, [user])
 
   const selectedPet = pets.find(p => p.id === selectedPetId) ?? null
+  const allIngredients = getAllIngredients()
 
   function addIngredient(ing: IngredientData, grams: number) {
     setLines(prev => {
       const existing = prev.findIndex(l => l.ingredient_id === ing.id)
       if (existing >= 0) {
-        // Update grams if already added
         return prev.map((l, i) => i === existing ? { ...l, grams } : l)
       }
       return [...prev, { ingredient_id: ing.id, grams }]
@@ -417,6 +425,7 @@ export default function AddRecipePage() {
               <div className="space-y-2">
                 {lines.map(line => {
                   const ing = getIngredientById(line.ingredient_id)!
+                  if (!ing) return null
                   const lineKcal = (ing.kcal * line.grams) / 100
                   return (
                     <div
@@ -533,6 +542,7 @@ export default function AddRecipePage() {
       {/* Ingredient Picker overlay */}
       {pickerOpen && (
         <IngredientPicker
+          allIngredients={allIngredients}
           onAdd={addIngredient}
           onClose={() => setPickerOpen(false)}
           existingIds={existingIds}

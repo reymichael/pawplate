@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Home, UtensilsCrossed, Calculator, Settings } from 'lucide-react'
+import { Home, UtensilsCrossed, FlaskConical, Calculator, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/', label: 'Pets', icon: Home },
   { to: '/recipes', label: 'Recipes', icon: UtensilsCrossed },
+  { to: '/ingredients', label: 'Ingredients', icon: FlaskConical },
   { to: '/pantry', label: 'Pantry', icon: Calculator },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]

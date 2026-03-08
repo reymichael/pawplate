@@ -1,5 +1,5 @@
 import type { RecipeIngredient, NutritionSummary } from '@/types'
-import { getIngredientById } from '@/lib/ingredients'
+import { getIngredientById } from '@/lib/ingredientRegistry'
 
 /** Aggregate all ingredient lines into a single NutritionSummary */
 export function calculateNutrition(ingredients: RecipeIngredient[]): NutritionSummary {
