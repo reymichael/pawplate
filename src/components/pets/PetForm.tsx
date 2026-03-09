@@ -214,8 +214,9 @@ export default function PetForm({ defaultValues, onSubmit, onCancel, submitLabel
         </div>
       </div>
 
-      {/* ── Sticky Footer Buttons ── */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-background border-t p-4 flex gap-3">
+      {/* ── Footer Buttons ── */}
+      {/* In-flow (not fixed) so they stay above the bottom nav bar */}
+      <div className="flex gap-3 pt-4 border-t">
         <Button type="button" variant="outline" className="flex-1 h-12" onClick={onCancel}>
           Cancel
         </Button>
