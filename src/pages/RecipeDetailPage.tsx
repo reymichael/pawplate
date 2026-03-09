@@ -7,8 +7,9 @@ import { fetchCustomIngredients } from '@/lib/customIngredients'
 import { calculateNutrition, macroPercents, dailyServingGrams, fmtNutrient } from '@/lib/recipeCalculations'
 import { scoreRecipe, scoreLabel, scoreColor } from '@/lib/aafco'
 import { calculateMER } from '@/lib/petCalculations'
+import { addLog } from '@/lib/feedingLog'
 import type { Recipe, Pet } from '@/types'
-import { ArrowLeft, Pencil, Trash2, Flame, Scale } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, Flame, Scale, ClipboardList } from 'lucide-react'
 import { toast } from 'sonner'
 
 const STATUS_BAR: Record<string, string> = {
@@ -74,6 +75,21 @@ export default function RecipeDetailPage() {
       if (petData) setPet(petData as Pet)
     }
     setLoading(false)
+  }
+
+  function handleLogFeed() {
+    if (!pet || !recipe) return
+    const n = calculateNutrition(recipe.ingredients)
+    addLog({
+      pet_id: pet.id,
+      recipe_id: recipe.id,
+      recipe_name: recipe.name,
+      kcal: Math.round(n.totalKcal),
+      weight_g: Math.round(n.totalWeight_g),
+      notes: '',
+      fed_at: new Date().toISOString(),
+    })
+    toast.success(`Feeding logged for ${pet.name}!`)
   }
 
   async function handleDelete() {
@@ -180,6 +196,17 @@ export default function RecipeDetailPage() {
               Covers daily energy needs ({Math.round(petMer)} kcal/day)
             </p>
           </div>
+        )}
+
+        {/* Log This Feeding — quick one-tap log for the associated pet */}
+        {pet && nutrition.totalKcal > 0 && (
+          <button
+            onClick={handleLogFeed}
+            className="w-full flex items-center justify-center gap-2 h-12 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm active:scale-95 transition-transform"
+          >
+            <ClipboardList size={18} />
+            Log This Feeding
+          </button>
         )}
 
         {/* Macro bar */}

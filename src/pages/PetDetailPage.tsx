@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import PetForm from '@/components/pets/PetForm'
@@ -14,6 +14,7 @@ import {
   formatKcal,
   formatLifeStage,
 } from '@/lib/petCalculations'
+import { getTodayKcalForPet } from '@/lib/feedingLog'
 import type { Pet } from '@/types'
 import { ArrowLeft, Pencil, Trash2, Flame, Scale, Calendar, Activity } from 'lucide-react'
 import { toast } from 'sonner'
@@ -264,6 +265,58 @@ export default function PetDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Today's Intake */}
+        {(() => {
+          const todayKcal = getTodayKcalForPet(pet.id)
+          const todayPct = mer > 0 ? Math.min(100, Math.round((todayKcal / mer) * 100)) : 0
+          return (
+            <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground">Today's Intake</h3>
+                <Link
+                  to={`/pets/${pet.id}/log`}
+                  className="text-xs text-primary font-medium"
+                >
+                  View Log →
+                </Link>
+              </div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      todayPct >= 100
+                        ? 'bg-emerald-500'
+                        : todayPct >= 50
+                        ? 'bg-primary'
+                        : 'bg-amber-400'
+                    }`}
+                    style={{ width: `${todayPct}%` }}
+                  />
+                </div>
+                <span className={`text-sm font-bold w-10 text-right ${
+                  todayPct >= 100 ? 'text-emerald-600' : 'text-foreground'
+                }`}>
+                  {todayPct}%
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{formatKcal(todayKcal)} kcal fed</span>
+                <span>Goal: {formatKcal(mer)} kcal</span>
+              </div>
+              {todayKcal === 0 && (
+                <p className="text-xs text-amber-600 mt-2 font-medium">
+                  No feedings logged today
+                </p>
+              )}
+              {todayPct >= 100 && (
+                <p className="text-xs text-emerald-600 mt-2 font-medium">
+                  ✓ Daily goal reached!
+                </p>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Body Condition */}
         <div className="bg-card rounded-2xl border border-border shadow-sm p-4">

@@ -15,6 +15,7 @@ import IngredientsPage from '@/pages/IngredientsPage'
 import AddIngredientPage from '@/pages/AddIngredientPage'
 import EditIngredientPage from '@/pages/EditIngredientPage'
 import EditRecipePage from '@/pages/EditRecipePage'
+import FeedingLogPage from '@/pages/FeedingLogPage'
 import OnboardingPage from '@/pages/OnboardingPage'
 
 function AppRoutes() {
@@ -62,6 +63,7 @@ function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/pets/new" element={<AddPetPage />} />
+        <Route path="/pets/:id/log" element={<FeedingLogPage />} />
         <Route path="/pets/:id" element={<PetDetailPage />} />
         <Route path="/recipes" element={<RecipesPage />} />
         <Route path="/recipes/new" element={<AddRecipePage />} />
