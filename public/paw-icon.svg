@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="112" fill="#f97316"/>
+
+  <!-- Main palm pad -->
+  <ellipse cx="256" cy="318" rx="92" ry="78" fill="white"/>
+
+  <!-- Toe pad — far left -->
+  <ellipse cx="152" cy="222" rx="42" ry="50" fill="white"/>
+
+  <!-- Toe pad — inner left -->
+  <ellipse cx="213" cy="182" rx="42" ry="50" fill="white"/>
+
+  <!-- Toe pad — inner right -->
+  <ellipse cx="299" cy="182" rx="42" ry="50" fill="white"/>
+
+  <!-- Toe pad — far right -->
+  <ellipse cx="360" cy="222" rx="42" ry="50" fill="white"/>
+</svg>

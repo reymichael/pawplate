@@ -117,4 +117,23 @@ body {
   margin: 0;
   min-width: 320px;
   -webkit-font-smoothing: antialiased;
+  /* Prevent elastic over-scroll on iOS — critical for PWA "app" feel */
+  overscroll-behavior: none;
+}
+
+/* ── PWA / Safe-area utilities ─────────────────────────────────────────────── */
+
+/* Padding equal to the iOS home-indicator safe area (0 on non-notched devices) */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Bottom nav clearance: fixed nav height (80px) + safe area */
+@utility pb-nav {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Tap highlight: remove the grey flash on mobile buttons/links */
+@utility tap-transparent {
+  -webkit-tap-highlight-color: transparent;
 }

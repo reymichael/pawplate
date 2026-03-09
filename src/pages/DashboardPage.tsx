@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const petMap = Object.fromEntries(pets.map(p => [p.id, p]))
 
   return (
-    <div className="p-4 pb-28">
+    <div className="p-4">
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6 pt-2">

@@ -2,9 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>pawplate</title>
+
+    <!-- ── Viewport ──────────────────────────────────────────────────── -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- ── Identity ──────────────────────────────────────────────────── -->
+    <title>PawPlate</title>
+    <meta name="description" content="Smart nutrition tracker for your dogs and cats. Log meals, build recipes, and hit daily calorie goals." />
+
+    <!-- ── PWA manifest ──────────────────────────────────────────────── -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- ── Favicon / icons ───────────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/paw-icon.svg" />
+    <link rel="apple-touch-icon" href="/paw-icon.svg" />
+
+    <!-- ── Theme color (Android status bar / Safari toolbar) ─────────── -->
+    <meta name="theme-color" content="#f97316" />
+
+    <!-- ── iOS PWA settings ──────────────────────────────────────────── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="PawPlate" />
+
+    <!-- ── Open Graph ────────────────────────────────────────────────── -->
+    <meta property="og:title" content="PawPlate — Pet Nutrition" />
+    <meta property="og:description" content="Smart nutrition tracker for your dogs and cats." />
+    <meta property="og:type" content="website" />
   </head>
   <body>
     <div id="root"></div>
