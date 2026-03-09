@@ -27,11 +27,31 @@ const INITIAL_PET: PetDraft = {
   activity_level: 'moderate',
 }
 
-/** Mark the user's onboarding as complete in user_profiles */
-async function markComplete(userId: string) {
-  await supabase
+/**
+ * Mark the user's onboarding as complete in user_profiles.
+ * Returns true on success, false (+ error toast) on failure.
+ */
+async function markComplete(userId: string): Promise<boolean> {
+  // Try upsert first (handles both insert and update)
+  const { error: upsertError } = await supabase
     .from('user_profiles')
     .upsert({ user_id: userId, onboarding_completed: true }, { onConflict: 'user_id' })
+
+  if (!upsertError) return true
+
+  // Upsert failed — fall back to plain UPDATE (row may already exist, INSERT blocked by RLS)
+  const { error: updateError } = await supabase
+    .from('user_profiles')
+    .update({ onboarding_completed: true })
+    .eq('user_id', userId)
+
+  if (!updateError) return true
+
+  // Both failed — surface the actual Supabase error so we can debug
+  console.error('[markComplete] upsert error:', upsertError)
+  console.error('[markComplete] update error:', updateError)
+  toast.error(`Could not save setup: ${upsertError.message}`)
+  return false
 }
 
 export default function OnboardingPage() {
@@ -65,7 +85,8 @@ export default function OnboardingPage() {
         body_condition_score: 5,
       })
       if (error) throw error
-      await markComplete(user.id)
+      const ok = await markComplete(user.id)
+      if (!ok) { setSaving(false); return }   // error already toasted
       await refreshProfile()
       setStep('done')
     } catch {
@@ -76,7 +97,8 @@ export default function OnboardingPage() {
 
   async function handleSkip() {
     if (!user) return
-    await markComplete(user.id)
+    const ok = await markComplete(user.id)
+    if (!ok) return   // error already toasted
     await refreshProfile()
     navigate('/', { replace: true })
   }

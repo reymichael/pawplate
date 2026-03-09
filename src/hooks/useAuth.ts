@@ -15,11 +15,13 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
 
   async function fetchProfile(userId: string) {
+    // maybeSingle() returns null (not an error) when no row exists — avoids
+    // a spurious PGRST116 console error for new users who have no profile yet
     const { data } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
     setProfile((data as UserProfile | null) ?? null)
   }
 
