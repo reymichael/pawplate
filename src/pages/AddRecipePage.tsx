@@ -10,8 +10,9 @@ import {
 import { fetchCustomIngredients } from '@/lib/customIngredients'
 import { calculateNutrition, dailyServingGrams } from '@/lib/recipeCalculations'
 import { calculateMER } from '@/lib/petCalculations'
+import { autoBalance } from '@/lib/autoBalance'
 import type { Pet, IngredientData, RecipeIngredient } from '@/types'
-import { ArrowLeft, Plus, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, ChevronDown, ChevronUp, Trash2, Wand2, PencilLine } from 'lucide-react'
 import { toast } from 'sonner'
 import IngredientPicker from '@/components/recipes/IngredientPicker'
 import BalanceScoreCard from '@/components/recipes/BalanceScoreCard'
@@ -21,6 +22,8 @@ interface DraftLine {
   ingredient_id: string
   grams: number
 }
+
+type RecipeMode = 'manual' | 'auto'
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function AddRecipePage() {
@@ -35,6 +38,10 @@ export default function AddRecipePage() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [nutritionOpen, setNutritionOpen] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [mode, setMode] = useState<RecipeMode>('manual')
+  const [isBalancing, setIsBalancing] = useState(false)
+  /** true after Auto-Balance has been run at least once this session */
+  const [hasBalanced, setHasBalanced] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -60,19 +67,69 @@ export default function AddRecipePage() {
     setLines(prev => {
       const existing = prev.findIndex(l => l.ingredient_id === ing.id)
       if (existing >= 0) {
+        // In auto mode we don't overwrite — just keep existing (already selected)
+        if (mode === 'auto') return prev
         return prev.map((l, i) => i === existing ? { ...l, grams } : l)
       }
       return [...prev, { ingredient_id: ing.id, grams }]
     })
-    setPickerOpen(false)
+    // Manual mode: close picker after each addition
+    // Auto mode: keep picker open for multi-select (handled by IngredientPicker)
+    if (mode === 'manual') setPickerOpen(false)
+    // Reset the "has balanced" flag when new ingredients are added in auto mode
+    if (mode === 'auto') setHasBalanced(false)
   }
 
   function removeLine(id: string) {
     setLines(prev => prev.filter(l => l.ingredient_id !== id))
+    if (mode === 'auto') setHasBalanced(false)
   }
 
   function updateGrams(id: string, grams: number) {
     setLines(prev => prev.map(l => l.ingredient_id === id ? { ...l, grams } : l))
+  }
+
+  /** Switch modes — keep existing lines but reset balanced flag */
+  function switchMode(next: RecipeMode) {
+    setMode(next)
+    setHasBalanced(false)
+  }
+
+  /** Run the auto-balance calculation and fill in gram values */
+  function handleAutoBalance() {
+    if (lines.length === 0) {
+      toast.error('Select at least one ingredient first.')
+      return
+    }
+
+    const species = selectedPet?.species ?? 'dog'
+    const petMer = selectedPet ? calculateMER(selectedPet) : 0
+
+    setIsBalancing(true)
+    // Short tick so the spinner renders before the calculation
+    setTimeout(() => {
+      const balanced = autoBalance(
+        lines.map(l => l.ingredient_id),
+        species,
+        petMer,
+      )
+
+      if (balanced.length === 0) {
+        toast.error('Could not balance this combination. Try adding more ingredients.')
+        setIsBalancing(false)
+        return
+      }
+
+      setLines(balanced)
+      setHasBalanced(true)
+      setIsBalancing(false)
+      setNutritionOpen(true) // show the score card
+      if (!selectedPet) {
+        toast.success('Amounts calculated! Select a pet to scale to their daily energy needs.')
+      } else {
+        toast.success(`Balanced for ${selectedPet.name}! Scaled to ${Math.round(petMer)} kcal/day.`)
+      }
+    }, 50)
   }
 
   async function handleSave() {
@@ -82,6 +139,11 @@ export default function AddRecipePage() {
     }
     if (lines.length === 0) {
       toast.error('Add at least one ingredient.')
+      return
+    }
+    // Warn if auto mode but hasn't balanced yet (all grams are still placeholders)
+    if (mode === 'auto' && !hasBalanced) {
+      toast.error('Tap ⚡ Auto-Balance first to calculate ingredient amounts.')
       return
     }
     setSaving(true)
@@ -111,6 +173,9 @@ export default function AddRecipePage() {
   const existingIds = new Set(lines.map(l => l.ingredient_id))
   const petMer = selectedPet ? calculateMER(selectedPet) : 0
   const servingG = dailyServingGrams(nutrition, petMer)
+
+  // In auto mode, lines with grams=1 are "pending" (not yet balanced)
+  const pendingBalance = mode === 'auto' && lines.length > 0 && !hasBalanced
 
   return (
     <>
@@ -164,7 +229,49 @@ export default function AddRecipePage() {
             </select>
           </div>
 
-          {/* Ingredients section */}
+          {/* ── Mode toggle ─────────────────────────────────────────────────── */}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Recipe Mode</label>
+            <div className="flex rounded-xl border border-border overflow-hidden">
+              <button
+                onClick={() => switchMode('manual')}
+                className={`flex-1 flex items-center justify-center gap-2 h-10 text-sm font-medium transition-colors ${
+                  mode === 'manual'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <PencilLine size={14} />
+                Manual
+              </button>
+              <button
+                onClick={() => switchMode('auto')}
+                className={`flex-1 flex items-center justify-center gap-2 h-10 text-sm font-medium transition-colors ${
+                  mode === 'auto'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Wand2 size={14} />
+                Auto-Balance
+              </button>
+            </div>
+            {/* Auto-mode description */}
+            {mode === 'auto' && (
+              <div className="mt-2 px-3 py-2.5 bg-primary/5 rounded-xl border border-primary/20">
+                <p className="text-xs text-primary leading-relaxed">
+                  <strong>Auto-Balance mode:</strong> Select the ingredients you want, then tap{' '}
+                  <strong>⚡ Auto-Balance</strong> to automatically compute the ideal gram amounts
+                  based on AAFCO 2016 nutritional standards.
+                  {selectedPet
+                    ? ` Amounts will be scaled to ${selectedPet.name}'s daily energy needs.`
+                    : ' Select a pet above to scale amounts to their daily energy needs.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Ingredients section ──────────────────────────────────────────── */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground">
@@ -175,7 +282,7 @@ export default function AddRecipePage() {
                 className="flex items-center gap-1.5 text-sm text-primary font-medium hover:opacity-80"
               >
                 <Plus size={16} />
-                Add
+                {mode === 'auto' ? 'Select' : 'Add'}
               </button>
             </div>
 
@@ -185,14 +292,17 @@ export default function AddRecipePage() {
                 className="w-full h-20 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
               >
                 <Plus size={20} />
-                <span className="text-sm">Tap to add first ingredient</span>
+                <span className="text-sm">
+                  {mode === 'auto' ? 'Tap to select ingredients' : 'Tap to add first ingredient'}
+                </span>
               </button>
             ) : (
               <div className="space-y-2">
                 {lines.map(line => {
-                  const ing = getIngredientById(line.ingredient_id)!
+                  const ing = getIngredientById(line.ingredient_id)
                   if (!ing) return null
                   const lineKcal = (ing.kcal * line.grams) / 100
+
                   return (
                     <div
                       key={line.ingredient_id}
@@ -200,19 +310,29 @@ export default function AddRecipePage() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{ing.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {Math.round(lineKcal)} kcal · {(ing.protein_g * line.grams / 100).toFixed(1)}g protein
-                        </p>
+                        {pendingBalance ? (
+                          <p className="text-xs text-primary/70 italic">Waiting for auto-balance…</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            {Math.round(lineKcal)} kcal · {(ing.protein_g * line.grams / 100).toFixed(1)}g protein
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="1"
-                          value={line.grams}
-                          onChange={e => updateGrams(line.ingredient_id, parseFloat(e.target.value) || 0)}
-                          className="w-16 h-8 px-2 text-center rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                        />
+                        {pendingBalance ? (
+                          <span className="w-16 h-8 flex items-center justify-center text-xs text-muted-foreground bg-muted/50 rounded-lg border border-dashed border-border">
+                            auto
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="1"
+                            value={line.grams}
+                            onChange={e => updateGrams(line.ingredient_id, parseFloat(e.target.value) || 0)}
+                            className="w-16 h-8 px-2 text-center rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          />
+                        )}
                         <span className="text-xs text-muted-foreground">g</span>
                         <button
                           onClick={() => removeLine(line.ingredient_id)}
@@ -225,15 +345,40 @@ export default function AddRecipePage() {
                   )
                 })}
 
-                {/* Add more button inline */}
+                {/* Add more / Select more button */}
                 <button
                   onClick={() => setPickerOpen(true)}
                   className="w-full h-10 rounded-xl border border-dashed border-border flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                 >
                   <Plus size={14} />
-                  Add ingredient
+                  {mode === 'auto' ? 'Select more ingredients' : 'Add ingredient'}
                 </button>
               </div>
+            )}
+
+            {/* ── Auto-Balance button ────────────────────────────────────────── */}
+            {mode === 'auto' && lines.length > 0 && (
+              <button
+                onClick={handleAutoBalance}
+                disabled={isBalancing}
+                className="w-full mt-3 h-12 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-60 transition-opacity"
+              >
+                {isBalancing ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Wand2 size={16} />
+                    ⚡ Auto-Balance{hasBalanced ? ' Again' : ''}
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Hint if balanced but no pet selected */}
+            {mode === 'auto' && hasBalanced && !selectedPet && (
+              <p className="mt-2 text-xs text-amber-600 text-center">
+                💡 Select a pet above to scale amounts to their specific calorie needs.
+              </p>
             )}
           </div>
 
@@ -251,8 +396,8 @@ export default function AddRecipePage() {
             />
           </div>
 
-          {/* Nutrition + Balance Score (shown when ingredients added) */}
-          {lines.length > 0 && (
+          {/* Nutrition + Balance Score (shown when ingredients are added and not pending) */}
+          {lines.length > 0 && !pendingBalance && (
             <div>
               <button
                 onClick={() => setNutritionOpen(o => !o)}
@@ -312,6 +457,7 @@ export default function AddRecipePage() {
           onAdd={addIngredient}
           onClose={() => setPickerOpen(false)}
           existingIds={existingIds}
+          autoMode={mode === 'auto'}
         />
       )}
     </>

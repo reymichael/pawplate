@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, X, CheckCircle2 } from 'lucide-react'
 import { CATEGORY_LABEL, CATEGORY_ORDER } from '@/lib/ingredientRegistry'
 import type { IngredientData } from '@/types'
 
@@ -8,9 +8,24 @@ interface Props {
   onAdd: (ing: IngredientData, grams: number) => void
   onClose: () => void
   existingIds: Set<string>
+  /**
+   * autoMode = true  →  Multi-select mode used by Auto-Balance.
+   *   • Tapping an ingredient immediately adds it (grams placeholder = 1)
+   *     without opening a gram-entry dialog.
+   *   • The picker stays open so the user can select multiple ingredients.
+   *   • Already-added ingredients show a ✓ checkmark instead of going dim.
+   * autoMode = false (default)  →  Manual mode — tap opens gram-entry dialog.
+   */
+  autoMode?: boolean
 }
 
-export default function IngredientPicker({ allIngredients, onAdd, onClose, existingIds }: Props) {
+export default function IngredientPicker({
+  allIngredients,
+  onAdd,
+  onClose,
+  existingIds,
+  autoMode = false,
+}: Props) {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<IngredientData | null>(null)
   const [gramStr, setGramStr] = useState('')
@@ -38,6 +53,22 @@ export default function IngredientPicker({ allIngredients, onAdd, onClose, exist
     setGramStr('')
   }
 
+  function handleIngredientClick(ing: IngredientData) {
+    if (autoMode) {
+      // Multi-select: toggle in-place, stay open for more selections
+      if (!existingIds.has(ing.id)) {
+        onAdd(ing, 1) // placeholder gram value; auto-balance will fill it in
+      }
+      // If already added, do nothing (user can remove from the recipe list)
+    } else {
+      // Manual mode: open gram entry dialog
+      setSelected(ing)
+      setGramStr('')
+    }
+  }
+
+  const addedCount = existingIds.size
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* Header */}
@@ -45,8 +76,29 @@ export default function IngredientPicker({ allIngredients, onAdd, onClose, exist
         <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-muted">
           <X size={20} />
         </button>
-        <h2 className="font-semibold text-lg">Add Ingredient</h2>
+        <div className="flex-1">
+          <h2 className="font-semibold text-lg">
+            {autoMode ? 'Select Ingredients' : 'Add Ingredient'}
+          </h2>
+        </div>
+        {autoMode && addedCount > 0 && (
+          <button
+            onClick={onClose}
+            className="px-3 h-8 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90"
+          >
+            Done ({addedCount})
+          </button>
+        )}
       </div>
+
+      {/* Auto-mode banner */}
+      {autoMode && (
+        <div className="px-4 py-2.5 bg-primary/5 border-b border-primary/20">
+          <p className="text-xs text-primary font-medium">
+            ⚡ Tap to select — amounts will be calculated automatically when you tap Auto-Balance.
+          </p>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-4 py-3 border-b">
@@ -71,23 +123,35 @@ export default function IngredientPicker({ allIngredients, onAdd, onClose, exist
                 {cat === '_custom' ? '⭐ My Custom Ingredients' : CATEGORY_LABEL[cat]}
               </span>
             </div>
-            {items.map(ing => (
-              <button
-                key={ing.id}
-                onClick={() => { setSelected(ing); setGramStr('') }}
-                className={`w-full flex items-center justify-between px-4 py-3 border-b border-border/50 hover:bg-muted/40 active:bg-muted text-left transition-colors ${existingIds.has(ing.id) ? 'opacity-40' : ''}`}
-              >
-                <div>
-                  <p className="text-sm font-medium text-foreground">{ing.name}</p>
-                  {ing.notes && (
-                    <p className="text-xs text-amber-600 mt-0.5 line-clamp-1">{ing.notes}</p>
-                  )}
-                </div>
-                <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                  {ing.kcal} kcal/100g
-                </span>
-              </button>
-            ))}
+            {items.map(ing => {
+              const isAdded = existingIds.has(ing.id)
+              return (
+                <button
+                  key={ing.id}
+                  onClick={() => handleIngredientClick(ing)}
+                  className={`w-full flex items-center justify-between px-4 py-3 border-b border-border/50 hover:bg-muted/40 active:bg-muted text-left transition-colors ${
+                    !autoMode && isAdded ? 'opacity-40' : ''
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${isAdded && autoMode ? 'text-primary' : 'text-foreground'}`}>
+                      {ing.name}
+                    </p>
+                    {ing.notes && (
+                      <p className="text-xs text-amber-600 mt-0.5 line-clamp-1">{ing.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="text-xs text-muted-foreground">
+                      {ing.kcal} kcal/100g
+                    </span>
+                    {autoMode && isAdded && (
+                      <CheckCircle2 size={16} className="text-primary" />
+                    )}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         ))}
         {Object.keys(grouped).length === 0 && (
@@ -97,8 +161,8 @@ export default function IngredientPicker({ allIngredients, onAdd, onClose, exist
         )}
       </div>
 
-      {/* Grams input modal */}
-      {selected && (
+      {/* Grams input modal — only shown in manual mode */}
+      {!autoMode && selected && (
         <div className="fixed inset-0 z-60 flex items-end justify-center bg-black/50 px-4 pb-8">
           <div className="w-full max-w-sm bg-card rounded-2xl p-5 shadow-xl border">
             <h3 className="font-semibold text-foreground mb-1">{selected.name}</h3>
