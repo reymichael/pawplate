@@ -217,7 +217,27 @@ export default function AddRecipePage() {
             <label className="text-sm font-medium text-foreground mb-1.5 block">For Which Pet?</label>
             <select
               value={selectedPetId}
-              onChange={e => setSelectedPetId(e.target.value)}
+              onChange={e => {
+                const newPetId = e.target.value
+                setSelectedPetId(newPetId)
+                // In auto mode, rescale ingredient amounts to the new pet's MER
+                if (mode === 'auto' && hasBalanced && lines.length > 0) {
+                  const newPet = pets.find(p => p.id === newPetId) ?? null
+                  const balanced = autoBalance(
+                    lines.map(l => l.ingredient_id),
+                    newPet?.species ?? 'dog',
+                    newPet ? calculateMER(newPet) : 0,
+                  )
+                  if (balanced.length > 0) {
+                    setLines(balanced)
+                    toast.info(
+                      newPet
+                        ? `Rescaled for ${newPet.name} (${Math.round(calculateMER(newPet))} kcal/day).`
+                        : 'Amounts kept — select a pet to scale to their energy needs.'
+                    )
+                  }
+                }
+              }}
               className="w-full h-11 px-4 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none"
             >
               <option value="">Select pet (optional)</option>
